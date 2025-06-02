@@ -1,7 +1,8 @@
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
-# dependencies
+# General dependencies
 node_modules/
+**/node_modules/ # Catch all node_modules in any subdirectory
 
 # Expo
 .expo/
@@ -32,6 +33,31 @@ yarn-error.*
 
 # local env files
 .env*.local
+.env # General .env files, be careful if you have one you WANT to commit (e.g. .env.example)
 
 # typescript
 *.tsbuildinfo
+
+# IDE specific
+.idea/
+.vscode/
+
+# Android build artifacts
+*.apk
+*.aab
+android/app/build/
+android/build/
+android/.gradle/
+
+# iOS build artifacts
+ios/build/
+ios/Pods/
+
+# Price Getter Service specific
+# Ensure this path is correct relative to your .gitignore file
+price-getter-service/node_modules/
+price-getter-service/.env
+price-getter-service/npm-debug.log*
+price-getter-service/yarn-debug.log*
+price-getter-service/yarn-error.log*
+price-getter-service/coverage/

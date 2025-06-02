@@ -1,7 +1,19 @@
 // API Key for UPCitemdb - Replace with your own key for higher limits
 // The 'demo_key' is very limited or might not work.
 // Sign up at https://www.upcitemdb.com/api/register
-const UPCITEMDB_API_KEY = 'demo_key'; // IMPORTANT: Replace with your actual key
+import { Platform } from 'react-native';
+
+export const UPCITEMDB_API_KEY = 'demo_key'; // IMPORTANT: Replace with your actual key
+
+// IMPORTANT: For physical device testing, replace 'YOUR_COMPUTER_IP_ADDRESS' 
+// with your development machine's IP address on your local network.
+// Your physical device and computer must be on the same Wi-Fi network.
+// Example: const KROGER_SERVICE_DEV_IP = '192.168.1.100'; 
+// For iOS simulator, 'localhost' usually works for the KROGER_SERVICE_DEV_IP.
+// For Android emulator, '10.0.2.2' usually works for the KROGER_SERVICE_DEV_IP.
+const KROGER_SERVICE_DEV_IP = '192.168.1.181'; // <--- USER NEEDS TO CHANGE THIS FOR PHYSICAL DEVICE
+
+const KROGER_SERVICE_BASE_URL = `http://${KROGER_SERVICE_DEV_IP}:4000`;
 
 /**
  * Looks up product information from OpenFoodFacts API.
@@ -39,20 +51,14 @@ export async function lookupUPCitemdb(barcode) {
     // return null; 
   }
   try {
-    // Note: UPCitemdb's 'lookup' endpoint might require a 'user_key' and 'key_type' in headers
-    // or as query parameters depending on their API version and your account type.
-    // The example in the prompt used headers, but their public API docs sometimes show query params.
-    // Let's try with query params first as it's simpler for GET.
-    // If using headers:
-    // const headers = { 'user_key': UPCITEMDB_API_KEY, 'key_type': '3scale' }; // or your specific key_type
-    // const response = await fetch(`https://api.upcitemdb.com/prod/v1/lookup?upc=${barcode}`, { headers });
-
-    const response = await fetch(`https://api.upcitemdb.com/prod/v1/lookup?upc=${barcode}&user_key=${UPCITEMDB_API_KEY}&key_type=3scale`);
-
+    const headers = { 
+      'user_key': UPCITEMDB_API_KEY, 
+      'key_type': '3scale'
+    };
+    const response = await fetch(`https://api.upcitemdb.com/prod/v1/lookup?upc=${barcode}`, { headers });
 
     if (!response.ok) {
       console.error(`UPCitemdb API error: ${response.status}`);
-      // Try to parse error message from API if available
       try {
         const errorData = await response.json();
         console.error('UPCitemdb API error details:', errorData);
@@ -63,7 +69,7 @@ export async function lookupUPCitemdb(barcode) {
     }
     const data = await response.json();
     if (data.code === "OK" && data.items && data.items.length > 0) {
-      return data; // Return the whole data object as it contains 'items' array
+      return data;
     } else if (data.code !== "OK") {
         console.log(`UPCitemdb: Product ${barcode} lookup failed. Code: ${data.code}, Message: ${data.message}`);
         return null;
@@ -74,5 +80,29 @@ export async function lookupUPCitemdb(barcode) {
   } catch (error) {
     console.error('Error fetching from UPCitemdb:', error);
     return null;
+  }
+}
+
+/**
+ * Looks up product price from the local priceGetter service (Kroger API).
+ * @param {string} upc - The barcode to look up.
+ * @param {string} zipCode - The user's ZIP code.
+ * @returns {Promise<object|null>} Product data or null if not found/error.
+ */
+export async function lookupKrogerPrice(upc, zipCode) {
+  try {
+    const response = await fetch(`${KROGER_SERVICE_BASE_URL}/api/price?upc=${upc}&zip=${zipCode}`);
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: response.statusText }));
+      console.error(`Kroger priceGetter service error: ${response.status}`, errorData);
+      throw new Error(errorData.error || `Failed to fetch price from Kroger service. Status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    return data; 
+  } catch (error) {
+    console.error('Error fetching from Kroger priceGetter service:', error.message);
+    throw error;
   }
 }
