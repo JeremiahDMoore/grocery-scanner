@@ -3,18 +3,21 @@ import { View, Text, TextInput, Button, StyleSheet, ScrollView, ActivityIndicato
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as barcodeApi from '../api/barcodeApi';
 
+const ASYNC_STORAGE_ZIP_KEY = 'user_zip_code'; // For retrieving stored ZIP
+
 export default function ProductDetailScreen({ route, navigation }) {
   const { barcodeData } = route.params;
   const [productName, setProductName] = useState('');
   const [price, setPrice] = useState('');
   const [quantity, setQuantity] = useState('1');
   const [brand, setBrand] = useState('');
-  const [zipCode, setZipCode] = useState(''); // Added for ZIP code input
+  const [storedZipCode, setStoredZipCode] = useState(''); // To store ZIP from AsyncStorage
   const [isLoading, setIsLoading] = useState(true); // For initial OFF/UPCitemdb load
   const [isKrogerLoading, setIsKrogerLoading] = useState(false); // For Kroger API load
   const [apiError, setApiError] = useState(null); // For OFF/UPCitemdb errors
   const [krogerApiError, setKrogerApiError] = useState(null); // For Kroger API errors
 
+  // Effect for fetching initial product details (OFF, UPCitemdb)
   useEffect(() => {
     const fetchInitialProductDetails = async () => {
       if (!barcodeData) {
@@ -86,42 +89,63 @@ export default function ProductDetailScreen({ route, navigation }) {
     fetchInitialProductDetails();
   }, [barcodeData]);
 
-  const fetchKrogerPrice = async () => {
-    if (!zipCode.trim()) {
-      setKrogerApiError("Please enter a ZIP code.");
-      return;
-    }
-    if (!barcodeData) {
-      setKrogerApiError("Barcode data is missing.");
-      return;
-    }
-
-    setIsKrogerLoading(true);
-    setKrogerApiError(null);
-    try {
-      const krogerData = await barcodeApi.lookupKrogerPrice(barcodeData, zipCode);
-      if (krogerData && krogerData.price) {
-        const newPrice = krogerData.price.promo > 0 ? krogerData.price.promo.toString() : krogerData.price.regular.toString();
-        setPrice(newPrice); // Update the price field
-        
-        // Optionally update name and brand if not already found or if Kroger's is preferred
-        if (!productName && krogerData.description) {
-          setProductName(krogerData.description);
+  // Effect for loading stored ZIP code and then fetching Kroger price
+  useEffect(() => {
+    const loadZipAndFetchKrogerPrice = async () => {
+      let currentZip = '';
+      try {
+        const fetchedZip = await AsyncStorage.getItem(ASYNC_STORAGE_ZIP_KEY);
+        if (fetchedZip) {
+          setStoredZipCode(fetchedZip);
+          currentZip = fetchedZip;
+        } else {
+          setKrogerApiError("No ZIP code stored. Please set a ZIP code first.");
+          // Optionally, navigate to ZipCodeEntryScreen if no ZIP is found
+          // navigation.navigate('ZipEntry'); 
+          return;
         }
-        if (!brand && krogerData.brand && krogerData.brand !== 'N/A') {
-          setBrand(krogerData.brand);
-        }
-        Alert.alert("Kroger Price Found", `Price updated to $${newPrice}`);
-      } else {
-        setKrogerApiError("Price not found in Kroger for this item and ZIP code.");
+      } catch (e) {
+        console.error("Failed to load ZIP for Kroger price", e);
+        setKrogerApiError("Could not load ZIP code for price lookup.");
+        return;
       }
-    } catch (error) {
-      console.error("Kroger API Error in screen:", error);
-      setKrogerApiError(error.message || "Failed to fetch price from Kroger. Check connection or service.");
-    } finally {
-      setIsKrogerLoading(false);
+
+      if (barcodeData && currentZip) {
+        setIsKrogerLoading(true);
+        setKrogerApiError(null);
+        try {
+          const krogerData = await barcodeApi.lookupKrogerPrice(barcodeData, currentZip);
+          if (krogerData && krogerData.price) {
+            const newPrice = (krogerData.price.promo > 0 ? krogerData.price.promo : krogerData.price.regular).toString();
+            setPrice(newPrice);
+            if (!productName && krogerData.description) {
+              setProductName(krogerData.description);
+            }
+            if (!brand && krogerData.brand && krogerData.brand !== 'N/A') {
+              setBrand(krogerData.brand);
+            }
+            // Alert.alert("Kroger Price Found", `Price updated to $${newPrice}`); // Maybe too intrusive for auto-fetch
+          } else {
+            setKrogerApiError("Price not found in Kroger for this item and ZIP code.");
+          }
+        } catch (error) {
+          console.error("Kroger API Error in screen:", error);
+          setKrogerApiError(error.message || "Failed to fetch price from Kroger.");
+        } finally {
+          setIsKrogerLoading(false);
+        }
+      }
+    };
+
+    // Only run if not already loading initial details, to avoid race conditions
+    // or if you want it to run regardless, manage isLoading states carefully.
+    if (!isLoading && barcodeData) { // Ensure initial load is done and barcode is present
+        loadZipAndFetchKrogerPrice();
     }
-  };
+    // Dependency array: re-run if barcodeData changes (e.g., navigating from scan again)
+    // or if isLoading changes to false (meaning initial data load is complete)
+  }, [barcodeData, isLoading, navigation]);
+
 
   const saveItem = async () => {
     if (!productName.trim() || !price.trim() || !quantity.trim()) {
@@ -194,19 +218,23 @@ export default function ProductDetailScreen({ route, navigation }) {
         keyboardType="numeric"
       />
 
-      <View style={styles.krogerSection}>
-        <Text style={styles.label}>Enter ZIP Code for Kroger Price:</Text>
-        <TextInput
-          style={styles.input}
-          value={zipCode}
-          onChangeText={setZipCode}
-          placeholder="e.g., 90210"
-          keyboardType="number-pad"
-        />
-        <Button title="Get Kroger Price" onPress={fetchKrogerPrice} disabled={isKrogerLoading} />
-        {isKrogerLoading && <View style={styles.centered}><ActivityIndicator size="small" /><Text>Fetching Kroger price...</Text></View>}
-        {krogerApiError && <Text style={styles.errorText}>{krogerApiError}</Text>}
-      </View>
+      {isKrogerLoading && (
+        <View style={styles.centeredRow}>
+          <ActivityIndicator size="small" />
+          <Text style={{marginLeft: 10}}>Fetching Kroger price for ZIP: {storedZipCode}...</Text>
+        </View>
+      )}
+      {krogerApiError && <Text style={styles.errorText}>{krogerApiError}</Text>}
+      {!isKrogerLoading && !krogerApiError && price && storedZipCode && (
+         <Text style={styles.infoText}>Price displayed is based on ZIP code: {storedZipCode}.</Text>
+      )}
+      <Button 
+        title="Change ZIP Code" 
+        onPress={() => navigation.navigate('ZipEntry', { isChanging: true })} 
+        color="dodgerblue" 
+      />
+      <View style={{ marginBottom: 15 }} /> 
+
 
       <Text style={styles.label}>Quantity*</Text>
       <TextInput
@@ -264,11 +292,17 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 10,
   },
-  krogerSection: {
-    marginVertical: 15,
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: '#eee',
+  infoText: {
+    textAlign: 'center',
+    fontSize: 12,
+    color: 'grey',
+    marginBottom:10,
+  },
+  centeredRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginVertical: 10,
   }
+  // krogerSection style might be removed if not used
 });
