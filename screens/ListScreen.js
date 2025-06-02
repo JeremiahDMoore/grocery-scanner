@@ -1,29 +1,43 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react'; // Added useContext
 import { View, Text, FlatList, Button, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useIsFocused } from '@react-navigation/native';
+import { ThemeContext } from '../context/ThemeContext'; // Added ThemeContext
 
 export default function ListScreen({ navigation }) {
+  const { theme } = useContext(ThemeContext); // Added: Use theme
+  const styles = getStyles(theme); // Dynamic styles
+
   const [items, setItems] = useState([]);
   const [totalCost, setTotalCost] = useState(0);
+  const [maxBudget, setMaxBudget] = useState(0); // Added state for maxBudget
   const isFocused = useIsFocused();
 
-  const loadItems = async () => {
+  const ASYNC_STORAGE_BUDGET_KEY = 'user_max_budget'; // Key for budget
+
+  const loadData = async () => { // Renamed from loadItems to load all data
     try {
-      const jsonValue = await AsyncStorage.getItem('shoppingList');
-      const storedItems = jsonValue != null ? JSON.parse(jsonValue) : [];
+      // Load items
+      const itemsJsonValue = await AsyncStorage.getItem('shoppingList');
+      const storedItems = itemsJsonValue != null ? JSON.parse(itemsJsonValue) : [];
       setItems(storedItems);
       calculateTotal(storedItems);
+
+      // Load max budget
+      const budgetJsonValue = await AsyncStorage.getItem(ASYNC_STORAGE_BUDGET_KEY);
+      const storedBudget = budgetJsonValue != null ? parseFloat(budgetJsonValue) : 0;
+      setMaxBudget(storedBudget);
+
     } catch (e) {
-      console.error("Failed to load items from AsyncStorage", e);
-      Alert.alert('Error', 'Failed to load shopping list.');
+      console.error("Failed to load data from AsyncStorage", e);
+      Alert.alert('Error', 'Failed to load shopping list or budget.');
     }
   };
 
   useEffect(() => {
     if (isFocused) {
-      loadItems();
+      loadData(); // Call new loadData function
     }
   }, [isFocused]);
 
@@ -63,7 +77,7 @@ export default function ListScreen({ navigation }) {
         {item.barcode ? <Text style={styles.itemBarcode}>Barcode: {item.barcode}</Text> : null}
       </View>
       <TouchableOpacity onPress={() => confirmDeleteItem(item.id)} style={styles.deleteButton}>
-        <Ionicons name="trash-outline" size={24} color="red" />
+        <Ionicons name="trash-outline" size={24} color={theme.ERROR_COLOR} />
       </TouchableOpacity>
     </View>
   );
@@ -84,29 +98,44 @@ export default function ListScreen({ navigation }) {
         />
       )}
       <View style={styles.footer}>
-        <Text style={styles.totalText}>Total: ${totalCost.toFixed(2)}</Text>
+        {maxBudget > 0 && (
+          <View style={styles.budgetContainer}>
+            <Text style={styles.budgetText}>Budget: ${maxBudget.toFixed(2)}</Text>
+            <Text style={styles.totalText}>Total: ${totalCost.toFixed(2)}</Text>
+            <Text style={
+              (maxBudget - totalCost) >= 0 ? styles.remainingBudgetTextPositive : styles.remainingBudgetTextNegative
+            }>
+              Remaining: ${(maxBudget - totalCost).toFixed(2)}
+            </Text>
+          </View>
+        )}
+        {maxBudget === 0 && (
+             <Text style={styles.totalText}>Total: ${totalCost.toFixed(2)}</Text>
+        )}
         <Button
           title="Add Item Manually"
           onPress={() => navigation.navigate('ManualEntry')}
+          color={theme.PRIMARY_COLOR}
         />
       </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (theme) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f8f8',
+    backgroundColor: theme.BACKGROUND_COLOR,
   },
   emptyListContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 20, // Added for better text wrapping
   },
   emptyListText: {
     fontSize: 18,
-    color: '#666',
+    color: theme.TEXT_COLOR, // Was #666
     textAlign: 'center',
     marginBottom: 10,
   },
@@ -118,9 +147,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 15,
-    backgroundColor: 'white',
+    backgroundColor: theme.BACKGROUND_COLOR, // Was white
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: theme.INPUT_BORDER_COLOR, // Was #eee
   },
   itemInfo: {
     flex: 1,
@@ -128,14 +157,16 @@ const styles = StyleSheet.create({
   itemName: {
     fontSize: 18,
     fontWeight: 'bold',
+    color: theme.TEXT_COLOR,
   },
   itemPrice: {
     fontSize: 16,
-    color: '#333',
+    color: theme.TEXT_COLOR, // Was #333
   },
   itemBarcode: {
     fontSize: 12,
-    color: '#777',
+    color: theme.TEXT_COLOR, // Was #777
+    opacity: 0.7,
   },
   deleteButton: {
     padding: 10,
@@ -143,13 +174,37 @@ const styles = StyleSheet.create({
   footer: {
     padding: 20,
     borderTopWidth: 1,
-    borderTopColor: '#ccc',
-    backgroundColor: 'white',
+    borderTopColor: theme.INPUT_BORDER_COLOR, // Was #ccc
+    backgroundColor: theme.BACKGROUND_COLOR, // Was white
   },
   totalText: {
     fontSize: 20,
     fontWeight: 'bold',
     textAlign: 'center',
+    marginBottom: 5, // Reduced margin for budget layout
+    color: theme.TEXT_COLOR,
+  },
+  budgetContainer: {
+    marginBottom: 15,
+    alignItems: 'center',
+  },
+  budgetText: {
+    fontSize: 16,
+    color: theme.TEXT_COLOR,
+    textAlign: 'center',
+  },
+  remainingBudgetTextPositive: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: theme.SUCCESS_COLOR, // Or a neutral color
+    textAlign: 'center',
     marginBottom: 10,
   },
+  remainingBudgetTextNegative: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: theme.ERROR_COLOR,
+    textAlign: 'center',
+    marginBottom: 10,
+  }
 });

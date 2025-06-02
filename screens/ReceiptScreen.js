@@ -1,12 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, Button, Image, StyleSheet, ScrollView, Alert } from 'react-native';
+import React, { useState, useEffect, useContext, useRef } from 'react'; // Added useContext, useRef
+import { View, Text, Button, Image, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'react-native'; // Added TouchableOpacity
 import * as ImagePicker from 'expo-image-picker';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import { ThemeContext } from '../context/ThemeContext'; // Added ThemeContext
+import { Ionicons } from '@expo/vector-icons'; // For camera buttons
 
 // Replace with your actual OCR.space API key or use a config file
 const OCR_API_KEY = 'helloworld'; // IMPORTANT: Replace with your key or use 'helloworld' for free tier testing
 
 export default function ReceiptScreen({ navigation }) {
+  const { theme } = useContext(ThemeContext); // Added: Use theme
+  const styles = getStyles(theme); // Dynamic styles
+  const cameraRef = useRef(null); // Added for camera operations
+
   const [imageUri, setImageUri] = useState(null);
   const [ocrText, setOcrText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -107,42 +113,43 @@ export default function ReceiptScreen({ navigation }) {
   if (showCamera) {
     // Ensure permissions are granted before showing camera
     if (!cameraPermission || !cameraPermission.granted) {
-        // This should ideally be handled before setting showCamera to true,
-        // but as a fallback:
-        return <View style={styles.container}><Text>Waiting for camera permission...</Text></View>;
+        return <View style={styles.centered}><Text style={styles.messageText}>Waiting for camera permission...</Text></View>;
     }
     return (
-        <CameraView 
-            style={StyleSheet.absoluteFillObject}
-            // onPictureSaved is not a direct prop for CameraView for saving.
-            // We handle saving in the takePictureAsync callback.
-            ref={ref => (this.camera = ref)} // Keep ref to call takePictureAsync
-        >
-            <View style={styles.cameraButtonContainer}>
-                <Button title="Take Picture" onPress={async () => {
-                    if (this.camera) {
+        <View style={{ flex: 1 }}>
+            <CameraView 
+                style={StyleSheet.absoluteFillObject}
+                ref={cameraRef}
+            />
+            <View style={styles.cameraOverlay}>
+                <TouchableOpacity style={styles.cameraCaptureButton} onPress={async () => {
+                    if (cameraRef.current) {
                         try {
-                            const photo = await this.camera.takePictureAsync();
-                            onPictureSaved(photo); // Call our handler with the photo object
+                            const photo = await cameraRef.current.takePictureAsync();
+                            onPictureSaved(photo);
                         } catch (e) {
                             console.error("Failed to take picture", e);
                             Alert.alert("Error", "Could not take picture.");
                             setShowCamera(false);
                         }
                     }
-                }} />
-                <Button title="Cancel" onPress={() => setShowCamera(false)} />
+                }}>
+                    <Ionicons name="camera-outline" size={40} color="white" />
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.cameraCloseButton} onPress={() => setShowCamera(false)}>
+                    <Ionicons name="close-circle-outline" size={40} color="white" />
+                </TouchableOpacity>
             </View>
-        </CameraView>
+        </View>
     );
   }
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
       <Text style={styles.title}>Receipt Scanner</Text>
       <View style={styles.buttonContainer}>
-        <Button title="Take Photo" onPress={takePhoto} disabled={!cameraPermission} />
-        <Button title="Pick Image from Gallery" onPress={pickImage} />
+        <Button title="Take Photo" onPress={takePhoto} disabled={!cameraPermission} color={theme.PRIMARY_COLOR} />
+        <Button title="Pick Image from Gallery" onPress={pickImage} color={theme.PRIMARY_COLOR} />
       </View>
 
       {imageUri && (
@@ -150,50 +157,78 @@ export default function ReceiptScreen({ navigation }) {
       )}
 
       {imageUri && !ocrText && (
-        <Button
-          title={isLoading ? 'Processing...' : 'Extract Text from Receipt'}
-          onPress={processImageWithOCR}
-          disabled={isLoading}
-        />
+        <View style={{marginVertical: 10}}>
+          <Button
+            title={isLoading ? 'Processing...' : 'Extract Text from Receipt'}
+            onPress={processImageWithOCR}
+            disabled={isLoading}
+            color={theme.SUCCESS_COLOR}
+          />
+        </View>
       )}
 
       {ocrText ? (
         <View style={styles.ocrResultContainer}>
           <Text style={styles.ocrTitle}>Extracted Text:</Text>
-          <Text style={styles.ocrText}>{ocrText}</Text>
-          {/* TODO: Add functionality to parse text and add items to list */}
-          <Button title="Clear" onPress={() => { setImageUri(null); setOcrText(''); }} />
+          <ScrollView style={styles.ocrScrollView} nestedScrollEnabled={true}>
+            <Text style={styles.ocrText}>{ocrText}</Text>
+          </ScrollView>
+          <Button title="Clear" onPress={() => { setImageUri(null); setOcrText(''); }} color={theme.ERROR_COLOR} />
         </View>
       ) : isLoading ? (
-        <Text style={styles.loadingText}>Extracting text, please wait...</Text>
+        <View style={styles.centered}><ActivityIndicator size="large" color={theme.PRIMARY_COLOR} /><Text style={styles.loadingText}>Extracting text...</Text></View>
       ) : null}
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (theme) => StyleSheet.create({
   container: {
     flex: 1,
     padding: 20,
+    backgroundColor: theme.BACKGROUND_COLOR,
+  },
+  centered: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: theme.BACKGROUND_COLOR,
+  },
+  messageText: {
+    color: theme.TEXT_COLOR,
+    fontSize: 16,
+    textAlign: 'center',
   },
   title: {
     fontSize: 22,
     fontWeight: 'bold',
     textAlign: 'center',
     marginBottom: 20,
+    color: theme.TEXT_COLOR,
   },
   buttonContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     marginBottom: 20,
   },
-  cameraButtonContainer: {
+  cameraOverlay: {
     flex: 1,
     backgroundColor: 'transparent',
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'flex-end',
+    flexDirection: 'column', // Changed for better layout of buttons
+    justifyContent: 'flex-end', // Buttons at bottom
+    alignItems: 'center',
+    paddingBottom: 30,
+  },
+  cameraCaptureButton: {
+    padding: 15,
+    borderRadius: 50, // Make it circular
+    backgroundColor: 'rgba(0,0,0,0.5)',
     marginBottom: 20,
+  },
+  cameraCloseButton: {
+    padding: 10,
+    borderRadius: 30,
+    backgroundColor: 'rgba(255,0,0,0.6)',
   },
   image: {
     width: '100%',
@@ -201,27 +236,32 @@ const styles = StyleSheet.create({
     resizeMode: 'contain',
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: '#ccc',
+    borderColor: theme.INPUT_BORDER_COLOR,
   },
   ocrResultContainer: {
     marginTop: 20,
     padding: 10,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: theme.INPUT_BACKGROUND_COLOR,
     borderRadius: 5,
   },
   ocrTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 10,
+    color: theme.TEXT_COLOR,
+  },
+  ocrScrollView: {
+    maxHeight: 200, // Limit height for scrollability
+    marginBottom: 10,
   },
   ocrText: {
     fontSize: 14,
-    color: '#333',
-    marginBottom: 10,
+    color: theme.TEXT_COLOR, // Was #333
   },
   loadingText: {
     textAlign: 'center',
-    marginTop: 20,
+    marginTop: 10, // Adjusted from 20
     fontSize: 16,
+    color: theme.TEXT_COLOR,
   }
 });

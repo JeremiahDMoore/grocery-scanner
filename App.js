@@ -1,64 +1,88 @@
 import 'react-native-gesture-handler';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
-import { View, Text, StyleSheet } from 'react-native'; // StyleSheet might not be needed here anymore if placeholders are removed
+import { View, Text, StyleSheet } from 'react-native';
 
 // Import actual screens
 import ScanScreen from './screens/ScanScreen';
-import { Alert } from 'react-native'; // Added Alert
+import { Alert } from 'react-native';
 import ManualEntryScreen from './screens/ManualEntryScreen';
 import ReceiptScreen from './screens/ReceiptScreen';
 import ListScreen from './screens/ListScreen';
 import ProductDetailScreen from './screens/ProductDetailScreen';
-import ZipCodeEntryScreen from './screens/ZipCodeEntryScreen'; // Added
-import AsyncStorage from '@react-native-async-storage/async-storage'; // Added
+import ZipCodeEntryScreen from './screens/ZipCodeEntryScreen';
+import SettingsScreen from './screens/SettingsScreen';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ThemeProvider, ThemeContext } from './context/ThemeContext';
+import CustomHeader from './components/CustomHeader';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
 
-const ASYNC_STORAGE_ZIP_KEY = 'user_zip_code'; // Added
+const ASYNC_STORAGE_ZIP_KEY = 'user_zip_code';
 
-// StyleSheet might not be needed here anymore if placeholders are removed
-// const styles = StyleSheet.create({
-//   container: {
-//     flex: 1,
-//     justifyContent: 'center',
-//     alignItems: 'center',
-//   },
-// });
-
-// Tab Navigator for core features
-function MainTabs() {
-  return (
-    <Tab.Navigator
-      screenOptions={({ route }) => ({
-        tabBarIcon: ({ focused, color, size }) => {
-          let iconName;
-          if (route.name === 'Scan') {
-            iconName = focused ? 'scan-circle' : 'scan-circle-outline';
-          } else if (route.name === 'List') {
-            iconName = focused ? 'list-circle' : 'list-circle-outline';
-          } else if (route.name === 'Receipt') {
-            iconName = focused ? 'receipt' : 'receipt-outline';
-          }
-          return <Ionicons name={iconName} size={size} color={color} />;
-        },
-      })}
-    >
-      <Tab.Screen name="Scan" component={ScanScreen} />
-      <Tab.Screen name="List" component={ListScreen} />
-      <Tab.Screen name="Receipt" component={ReceiptScreen} />
-    </Tab.Navigator>
-  );
-}
-
-// Main Stack Navigator
-export default function App() {
+function AppContent() {
+  const { theme } = useContext(ThemeContext);
   const [isCheckingZip, setIsCheckingZip] = useState(true);
-  const [initialRouteName, setInitialRouteName] = useState(null); // Will be 'ZipEntry' or 'Main'
+  const [initialRouteName, setInitialRouteName] = useState(null);
+
+  function MainTabsWithTheme() {
+    return (
+      <Tab.Navigator
+        screenOptions={({ route }) => ({
+          tabBarIcon: ({ focused, color, size }) => {
+            let iconName;
+            if (route.name === 'Settings') {
+              iconName = focused ? 'settings' : 'settings-outline';
+            } else if (route.name === 'Scan') {
+              iconName = focused ? 'scan-circle' : 'scan-circle-outline';
+            } else if (route.name === 'List') {
+              iconName = focused ? 'list-circle' : 'list-circle-outline';
+            } else if (route.name === 'Receipt') {
+              iconName = focused ? 'receipt' : 'receipt-outline';
+            }
+            return <Ionicons name={iconName} size={size} color={color} />;
+          },
+          tabBarStyle: { backgroundColor: theme.BACKGROUND_COLOR, borderTopColor: theme.INPUT_BORDER_COLOR },
+          tabBarActiveTintColor: theme.PRIMARY_COLOR,
+          tabBarInactiveTintColor: theme.mode === 'light' ? 'gray' : theme.INPUT_PLACEHOLDER_COLOR,
+          headerShown: false,
+        })}
+      >
+        <Tab.Screen name="Settings" component={SettingsScreen} />
+        <Tab.Screen name="Scan" component={ScanScreen} />
+        <Tab.Screen name="List" component={ListScreen} />
+        <Tab.Screen name="Receipt" component={ReceiptScreen} />
+      </Tab.Navigator>
+    );
+  }
+
+  const navigationTheme = {
+    dark: theme.mode === 'dark',
+    colors: {
+      primary: theme.PRIMARY_COLOR,
+      background: theme.BACKGROUND_COLOR,
+      card: theme.BACKGROUND_COLOR,
+      text: theme.TEXT_COLOR,
+      border: theme.INPUT_BORDER_COLOR,
+      notification: theme.PRIMARY_COLOR,
+    },
+    // Add fonts to the navigation theme
+    fonts: {
+      regular: {
+        fontFamily: theme.fonts.regular,
+        fontWeight: 'normal',
+      },
+      medium: {
+        fontFamily: theme.fonts.medium,
+        fontWeight: '500', // React Navigation often expects fontWeight here
+      },
+      // Add other font weights if needed by React Navigation
+    },
+  };
 
   useEffect(() => {
     const checkStoredZip = async () => {
@@ -68,7 +92,6 @@ export default function App() {
         if (currentZip) {
           setInitialRouteName('Main');
         } else {
-          // No ZIP stored, set the default and save it
           await AsyncStorage.setItem(ASYNC_STORAGE_ZIP_KEY, DEFAULT_ZIP_CODE);
           Alert.alert(
             "Default ZIP Code Set",
@@ -76,12 +99,11 @@ export default function App() {
             [{ text: "OK" }]
           );
           console.log(`Default ZIP code ${DEFAULT_ZIP_CODE} set.`);
-          setInitialRouteName('Main'); // Proceed to main app with default ZIP
+          setInitialRouteName('Main');
         }
       } catch (e) {
         console.error("Failed to load or set ZIP from storage for initial route", e);
-        // If storage fails, we might still want to go to ZipEntry or handle error
-        setInitialRouteName('ZipEntry'); 
+        setInitialRouteName('ZipEntry');
       } finally {
         setIsCheckingZip(false);
       }
@@ -90,30 +112,40 @@ export default function App() {
   }, []);
 
   if (isCheckingZip || !initialRouteName) {
-    // You can return a proper loading screen here
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <Text>Loading application...</Text>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.BACKGROUND_COLOR }}>
+        <Text style={{ color: theme.TEXT_COLOR }}>Loading application...</Text>
       </View>
     );
   }
 
   return (
-    <NavigationContainer>
-      <Stack.Navigator initialRouteName={initialRouteName}>
-        <Stack.Screen 
-          name="ZipEntry" 
-          component={ZipCodeEntryScreen} 
-          options={{ title: 'Enter Your ZIP Code', headerShown: false }} 
+    <NavigationContainer theme={navigationTheme}>
+      <Stack.Navigator
+        initialRouteName={initialRouteName}
+        screenOptions={({ navigation }) => ({
+          header: (props) => <CustomHeader {...props} />,
+        })}
+      >
+        <Stack.Screen name="ZipEntry" component={ZipCodeEntryScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="Main" component={MainTabsWithTheme} options={{ headerShown: false }} />
+        <Stack.Screen
+          name="ManualEntry"
+          component={ManualEntryScreen}
         />
-        <Stack.Screen 
-          name="Main" 
-          component={MainTabs} 
-          options={{ headerShown: false }} 
+        <Stack.Screen
+          name="ProductDetail"
+          component={ProductDetailScreen}
         />
-        <Stack.Screen name="ManualEntry" component={ManualEntryScreen} options={{ title: 'Add Item Manually' }}/>
-        <Stack.Screen name="ProductDetail" component={ProductDetailScreen} options={{ title: 'Product Details' }} />
       </Stack.Navigator>
     </NavigationContainer>
+  );
+}
+
+export default function AppWrapper() {
+  return (
+    <ThemeProvider>
+      <AppContent />
+    </ThemeProvider>
   );
 }

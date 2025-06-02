@@ -1,11 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react'; // Added useContext
 import { View, Text, TextInput, Button, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as barcodeApi from '../api/barcodeApi';
+import { ThemeContext } from '../context/ThemeContext'; // Added ThemeContext
 
 const ASYNC_STORAGE_ZIP_KEY = 'user_zip_code'; // For retrieving stored ZIP
 
 export default function ProductDetailScreen({ route, navigation }) {
+  const { theme } = useContext(ThemeContext); // Added: Use theme
+  const styles = getStyles(theme); // Dynamic styles
+
   const { barcodeData } = route.params;
   const [productName, setProductName] = useState('');
   const [price, setPrice] = useState('');
@@ -175,11 +179,16 @@ export default function ProductDetailScreen({ route, navigation }) {
   };
 
   if (isLoading) {
-    return <View style={styles.centered}><ActivityIndicator size="large" /><Text>Loading product details...</Text></View>;
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color={theme.PRIMARY_COLOR} />
+        <Text style={styles.loadingText}>Loading product details...</Text>
+      </View>
+    );
   }
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
       <Text style={styles.header}>Product Details</Text>
       {apiError && <Text style={styles.errorText}>{apiError}</Text>}
       
@@ -188,6 +197,7 @@ export default function ProductDetailScreen({ route, navigation }) {
         style={[styles.input, styles.readOnlyInput]}
         value={barcodeData}
         editable={false}
+        placeholderTextColor={theme.INPUT_PLACEHOLDER_COLOR}
       />
 
       <Text style={styles.label}>Product Name*</Text>
@@ -196,6 +206,7 @@ export default function ProductDetailScreen({ route, navigation }) {
         value={productName}
         onChangeText={setProductName}
         placeholder="e.g., Organic Apples"
+        placeholderTextColor={theme.INPUT_PLACEHOLDER_COLOR}
       />
       
       {brand ? (
@@ -205,6 +216,7 @@ export default function ProductDetailScreen({ route, navigation }) {
             style={[styles.input, styles.readOnlyInput]}
             value={brand}
             editable={false} 
+            placeholderTextColor={theme.INPUT_PLACEHOLDER_COLOR}
           />
         </>
       ) : null}
@@ -216,12 +228,13 @@ export default function ProductDetailScreen({ route, navigation }) {
         onChangeText={setPrice}
         placeholder="e.g., 2.99"
         keyboardType="numeric"
+        placeholderTextColor={theme.INPUT_PLACEHOLDER_COLOR}
       />
 
       {isKrogerLoading && (
         <View style={styles.centeredRow}>
-          <ActivityIndicator size="small" />
-          <Text style={{marginLeft: 10}}>Fetching Kroger price for ZIP: {storedZipCode}...</Text>
+          <ActivityIndicator size="small" color={theme.PRIMARY_COLOR} />
+          <Text style={styles.loadingKrogerText}>Fetching Kroger price for ZIP: {storedZipCode}...</Text>
         </View>
       )}
       {krogerApiError && <Text style={styles.errorText}>{krogerApiError}</Text>}
@@ -231,7 +244,7 @@ export default function ProductDetailScreen({ route, navigation }) {
       <Button 
         title="Change ZIP Code" 
         onPress={() => navigation.navigate('ZipEntry', { isChanging: true })} 
-        color="dodgerblue" 
+        color={theme.PRIMARY_COLOR} 
       />
       <View style={{ marginBottom: 15 }} /> 
 
@@ -244,58 +257,78 @@ export default function ProductDetailScreen({ route, navigation }) {
         placeholder="e.g., 1"
         keyboardType="numeric"
         defaultValue="1"
+        placeholderTextColor={theme.INPUT_PLACEHOLDER_COLOR}
       />
 
-      <Button title="Add to Shopping List" onPress={saveItem} />
+      <Button title="Add to Shopping List" onPress={saveItem} color={theme.SUCCESS_COLOR} />
       <View style={{ marginVertical: 10 }} />
-      <Button title="Enter Manually Instead" onPress={() => navigation.replace('ManualEntry', { barcodeData })} color="grey"/>
+      <Button 
+        title="Enter Manually Instead" 
+        onPress={() => navigation.replace('ManualEntry', { barcodeData })} 
+        color={theme.SECONDARY_COLOR}
+      />
 
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (theme) => StyleSheet.create({
   container: {
     flex: 1,
     padding: 20,
+    backgroundColor: theme.BACKGROUND_COLOR,
   },
   centered: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: theme.BACKGROUND_COLOR,
+  },
+  loadingText: {
+    marginTop: 10,
+    color: theme.TEXT_COLOR,
+    fontSize: 16,
+  },
+  loadingKrogerText: {
+    marginLeft: 10,
+    color: theme.TEXT_COLOR,
   },
   header: {
     fontSize: 22,
     fontWeight: 'bold',
     marginBottom: 20,
     textAlign: 'center',
+    color: theme.TEXT_COLOR,
   },
   label: {
     fontSize: 16,
     marginBottom: 5,
     marginTop: 10,
+    color: theme.TEXT_COLOR,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ccc',
+    borderColor: theme.INPUT_BORDER_COLOR,
+    backgroundColor: theme.INPUT_BACKGROUND_COLOR,
+    color: theme.INPUT_TEXT_COLOR,
     padding: 10,
     fontSize: 16,
     borderRadius: 5,
     marginBottom: 15,
   },
   readOnlyInput: {
-    backgroundColor: '#f0f0f0',
-    color: '#555',
+    backgroundColor: theme.mode === 'light' ? '#f0f0f0' : '#3A3A3C', // Slightly different for dark
+    color: theme.mode === 'light' ? '#555' : '#C7C7CC',
   },
   errorText: {
-    color: 'red',
+    color: theme.ERROR_COLOR,
     textAlign: 'center',
     marginBottom: 10,
   },
   infoText: {
     textAlign: 'center',
     fontSize: 12,
-    color: 'grey',
+    color: theme.mode === 'light' ? 'grey' : theme.INPUT_PLACEHOLDER_COLOR,
     marginBottom:10,
   },
   centeredRow: {
@@ -304,5 +337,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginVertical: 10,
   }
-  // krogerSection style might be removed if not used
 });

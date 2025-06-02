@@ -1,13 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react'; // Added useContext
 import { View, Text, TextInput, Button, StyleSheet, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ThemeContext } from '../context/ThemeContext'; // Added ThemeContext
 
 const ASYNC_STORAGE_ZIP_KEY = 'user_zip_code';
 
-export default function ZipCodeEntryScreen({ route, navigation }) { // Added route
+export default function ZipCodeEntryScreen({ route, navigation }) {
+  const { theme } = useContext(ThemeContext); // Added: Use theme
   const [zipCode, setZipCode] = useState('');
   const [isLoading, setIsLoading] = useState(true);
-  const isChanging = route.params?.isChanging || false; // Check if we are changing ZIP
+  const isChanging = route.params?.isChanging || false;
+
+  // Dynamic styles based on theme
+  const styles = getStyles(theme);
 
   useEffect(() => {
     const loadCurrentZip = async () => {
@@ -67,41 +72,51 @@ export default function ZipCodeEntryScreen({ route, navigation }) { // Added rou
         value={zipCode}
         onChangeText={setZipCode}
         placeholder="e.g., 90210"
+        placeholderTextColor={theme.INPUT_PLACEHOLDER_COLOR}
         keyboardType="number-pad"
         maxLength={5}
       />
-      <Button title="Save and Continue" onPress={handleSaveZipCode} />
+      <Button 
+        title="Save and Continue" 
+        onPress={handleSaveZipCode} 
+        color={theme.BUTTON_BACKGROUND_COLOR} // Themed button
+      />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+// Styles function that accepts theme
+const getStyles = (theme) => StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: 'center',
     padding: 20,
-    backgroundColor: '#fff',
+    backgroundColor: theme.BACKGROUND_COLOR,
   },
-  centered: {
+  centered: { // For loading screen
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: theme.BACKGROUND_COLOR,
   },
   header: {
     fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 20,
     textAlign: 'center',
+    color: theme.TEXT_COLOR,
   },
   label: {
     fontSize: 16,
     marginBottom: 15,
     textAlign: 'center',
-    color: '#555',
+    color: theme.TEXT_COLOR, // Adjusted from #555
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ccc',
+    borderColor: theme.INPUT_BORDER_COLOR,
+    backgroundColor: theme.INPUT_BACKGROUND_COLOR,
+    color: theme.INPUT_TEXT_COLOR,
     padding: 12,
     fontSize: 18,
     borderRadius: 5,
