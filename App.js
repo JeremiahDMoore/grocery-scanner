@@ -128,7 +128,13 @@ function AppContent() {
         })}
       >
         <Stack.Screen name="ZipEntry" component={ZipCodeEntryScreen} options={{ headerShown: false }} />
-        <Stack.Screen name="Main" component={MainTabsWithTheme} options={{ headerShown: false }} />
+        <Stack.Screen 
+          name="Main" 
+          component={MainTabsWithTheme} 
+          // Removed headerShown: false to allow CustomHeader to be displayed
+          // The bottom navbar will remain persistent on all screens, displaying [Settings, Scan, List, Receipt]
+          // This means the header will appear above the tab bar.
+        />
         <Stack.Screen
           name="ManualEntry"
           component={ManualEntryScreen}

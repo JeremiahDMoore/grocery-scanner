@@ -71,14 +71,14 @@ export default function SettingsScreen({ navigation }) {
           keyboardType="numeric"
           placeholderTextColor={theme.INPUT_PLACEHOLDER_COLOR}
         />
-        <Button title="Save Budget" onPress={handleSaveMaxBudget} color={theme.SUCCESS_COLOR} />
+        <Button title="Save Budget" onPress={handleSaveMaxBudget} color={theme.PRIMARY_COLOR} />
       </View>
       
       <View style={[styles.settingItem, styles.themeToggleContainer]}>
         <Text style={styles.label}>Dark Mode</Text>
         <Switch
-          trackColor={{ false: "#767577", true: theme.PRIMARY_COLOR }}
-          thumbColor={isDarkTheme ? theme.ACCENT_COLOR : "#f4f3f4"}
+          trackColor={{ false: "#767577", true: "#545355" }}
+          thumbColor={isDarkTheme ? theme.PRIMARY_COLOR : "#f4f3f4"}
           ios_backgroundColor="#3e3e3e"
           onValueChange={handleThemeToggle}
           value={isDarkTheme}
