@@ -157,17 +157,12 @@ app.get('/api/price', async (req, res) => {
 
     return res.json(productData);
   } catch (error) {
-    // 1e. Handle errors & Kroger rate limits gracefully
-    // Fail fast on network errors; return 502 to the app with a helpful JSON error payload.
     console.error(`Error in /api/price for UPC ${upc}, ZIP ${zip}:`, error.message);
     const details = error.cause && error.cause.response ? error.cause.response.data : error.message;
 
-    // If the error is due to Kroger API (token, location, product), it's an upstream issue.
-    // Our service should return 502 Bad Gateway.
-    // This includes Kroger's rate limits (e.g., 429) which are treated as an inability of the upstream service to respond.
     return res.status(502).json({
       error: 'Failed to retrieve data from Kroger.',
-      details: typeof details === 'string' ? details : JSON.stringify(details), // Ensure details are serializable
+      details: typeof details === 'string' ? details : JSON.stringify(details),
     });
   }
 });

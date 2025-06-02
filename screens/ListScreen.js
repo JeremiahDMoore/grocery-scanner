@@ -12,19 +12,16 @@ export default function ListScreen({ navigation }) {
   const [items, setItems] = useState([]);
   const [totalCost, setTotalCost] = useState(0);
   const [maxBudget, setMaxBudget] = useState(0); // Added state for maxBudget
-  const isFocused = useIsFocused();
+  const isFocused = useIsFocused(); // Keep useIsFocused for general focus detection
+  const ASYNC_STORAGE_BUDGET_KEY = 'user_max_budget';
 
-  const ASYNC_STORAGE_BUDGET_KEY = 'user_max_budget'; // Key for budget
-
-  const loadData = async () => { // Renamed from loadItems to load all data
+  const loadData = async () => {
     try {
-      // Load items
       const itemsJsonValue = await AsyncStorage.getItem('shoppingList');
       const storedItems = itemsJsonValue != null ? JSON.parse(itemsJsonValue) : [];
       setItems(storedItems);
       calculateTotal(storedItems);
 
-      // Load max budget
       const budgetJsonValue = await AsyncStorage.getItem(ASYNC_STORAGE_BUDGET_KEY);
       const storedBudget = budgetJsonValue != null ? parseFloat(budgetJsonValue) : 0;
       setMaxBudget(storedBudget);
@@ -36,10 +33,14 @@ export default function ListScreen({ navigation }) {
   };
 
   useEffect(() => {
-    if (isFocused) {
-      loadData(); // Call new loadData function
-    }
-  }, [isFocused]);
+    // Use navigation.addListener('focus') for more reliable data refresh
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadData();
+    });
+
+    // Return the function to unsubscribe from the event so it gets cleaned up
+    return unsubscribe;
+  }, [navigation]); // Depend on navigation object
 
   const calculateTotal = (currentItems) => {
     const total = currentItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);

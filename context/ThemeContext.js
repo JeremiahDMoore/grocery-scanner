@@ -6,7 +6,7 @@ const ASYNC_STORAGE_THEME_KEY = 'user_theme_preference';
 
 export const lightTheme = {
   mode: 'light',
-  BACKGROUND_COLOR: '#FFFFFF',
+  BACKGROUND_COLOR: '#dedede',
   TEXT_COLOR: '#000000',
   PRIMARY_COLOR: '#007AFF', // Dodger Blue (example)
   SECONDARY_COLOR: '#5856D6', // (example purple)

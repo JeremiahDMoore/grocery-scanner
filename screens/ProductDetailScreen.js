@@ -1,27 +1,26 @@
-import React, { useState, useEffect, useContext } from 'react'; // Added useContext
-import { View, Text, TextInput, Button, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import React, { useState, useEffect, useContext } from 'react';
+import { View, Text, TextInput, Button, StyleSheet, ScrollView, ActivityIndicator, Alert, TouchableOpacity } from 'react-native'; // Added TouchableOpacity
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as barcodeApi from '../api/barcodeApi';
-import { ThemeContext } from '../context/ThemeContext'; // Added ThemeContext
+import { ThemeContext } from '../context/ThemeContext';
 
-const ASYNC_STORAGE_ZIP_KEY = 'user_zip_code'; // For retrieving stored ZIP
+const ASYNC_STORAGE_ZIP_KEY = 'user_zip_code';
 
 export default function ProductDetailScreen({ route, navigation }) {
-  const { theme } = useContext(ThemeContext); // Added: Use theme
-  const styles = getStyles(theme); // Dynamic styles
+  const { theme } = useContext(ThemeContext);
+  const styles = getStyles(theme);
 
   const { barcodeData } = route.params;
   const [productName, setProductName] = useState('');
   const [price, setPrice] = useState('');
   const [quantity, setQuantity] = useState('1');
   const [brand, setBrand] = useState('');
-  const [storedZipCode, setStoredZipCode] = useState(''); // To store ZIP from AsyncStorage
-  const [isLoading, setIsLoading] = useState(true); // For initial OFF/UPCitemdb load
-  const [isKrogerLoading, setIsKrogerLoading] = useState(false); // For Kroger API load
-  const [apiError, setApiError] = useState(null); // For OFF/UPCitemdb errors
-  const [krogerApiError, setKrogerApiError] = useState(null); // For Kroger API errors
+  const [storedZipCode, setStoredZipCode] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isKrogerLoading, setIsKrogerLoading] = useState(false);
+  const [apiError, setApiError] = useState(null);
+  const [krogerApiError, setKrogerApiError] = useState(null);
 
-  // Effect for fetching initial product details (OFF, UPCitemdb)
   useEffect(() => {
     const fetchInitialProductDetails = async () => {
       if (!barcodeData) {
@@ -36,14 +35,12 @@ export default function ProductDetailScreen({ route, navigation }) {
       let foundPrice = '';
 
       try {
-        // Call OpenFoodFacts for name/brand
         const offProduct = await barcodeApi.lookupOpenFoodFacts(barcodeData);
         if (offProduct && offProduct.product_name) {
           foundName = offProduct.product_name;
           foundBrand = offProduct.brands || '';
         }
 
-        // Call UPCitemdb for price and to supplement name/brand if needed
         if (barcodeApi.UPCITEMDB_API_KEY === 'demo_key') {
           Alert.alert(
             "Demo API Key Active",
@@ -54,27 +51,25 @@ export default function ProductDetailScreen({ route, navigation }) {
         const upcData = await barcodeApi.lookupUPCitemdb(barcodeData);
         if (upcData && upcData.items && upcData.items.length > 0) {
           const item = upcData.items[0];
-          if (!foundName && item.title) { // If OpenFoodFacts didn't provide a name, use UPCitemdb's
+          if (!foundName && item.title) {
             foundName = item.title;
           }
-          if (!foundBrand && item.brand) { // If OpenFoodFacts didn't provide a brand, use UPCitemdb's
+          if (!foundBrand && item.brand) {
             foundBrand = item.brand;
           }
           
-          // Try to get price from UPCitemdb
           if (item.lowest_recorded_price) {
             foundPrice = item.lowest_recorded_price.toString();
           } else if (item.offers && item.offers.length > 0 && item.offers[0].price) {
-            // Fallback to first offer price if lowest_recorded_price is not available
             foundPrice = item.offers[0].price.toString();
           }
         }
 
-        if (foundName || foundPrice) { // If we found any useful info
-          setProductName(foundName || 'Unknown Product'); // Default if name still not found
+        if (foundName || foundPrice) {
+          setProductName(foundName || 'Unknown Product');
           setBrand(foundBrand);
           setPrice(foundPrice);
-          if (!foundName && !foundPrice) { // If both APIs failed to yield anything useful
+          if (!foundName && !foundPrice) {
              setApiError("Product not found or no price information available.");
           }
         } else {
@@ -93,7 +88,6 @@ export default function ProductDetailScreen({ route, navigation }) {
     fetchInitialProductDetails();
   }, [barcodeData]);
 
-  // Effect for loading stored ZIP code and then fetching Kroger price
   useEffect(() => {
     const loadZipAndFetchKrogerPrice = async () => {
       let currentZip = '';
@@ -104,8 +98,6 @@ export default function ProductDetailScreen({ route, navigation }) {
           currentZip = fetchedZip;
         } else {
           setKrogerApiError("No ZIP code stored. Please set a ZIP code first.");
-          // Optionally, navigate to ZipCodeEntryScreen if no ZIP is found
-          // navigation.navigate('ZipEntry'); 
           return;
         }
       } catch (e) {
@@ -128,7 +120,6 @@ export default function ProductDetailScreen({ route, navigation }) {
             if (!brand && krogerData.brand && krogerData.brand !== 'N/A') {
               setBrand(krogerData.brand);
             }
-            // Alert.alert("Kroger Price Found", `Price updated to $${newPrice}`); // Maybe too intrusive for auto-fetch
           } else {
             setKrogerApiError("Price not found in Kroger for this item and ZIP code.");
           }
@@ -141,15 +132,10 @@ export default function ProductDetailScreen({ route, navigation }) {
       }
     };
 
-    // Only run if not already loading initial details, to avoid race conditions
-    // or if you want it to run regardless, manage isLoading states carefully.
-    if (!isLoading && barcodeData) { // Ensure initial load is done and barcode is present
+    if (!isLoading && barcodeData) {
         loadZipAndFetchKrogerPrice();
     }
-    // Dependency array: re-run if barcodeData changes (e.g., navigating from scan again)
-    // or if isLoading changes to false (meaning initial data load is complete)
   }, [barcodeData, isLoading, navigation]);
-
 
   const saveItem = async () => {
     if (!productName.trim() || !price.trim() || !quantity.trim()) {
@@ -239,13 +225,13 @@ export default function ProductDetailScreen({ route, navigation }) {
       )}
       {krogerApiError && <Text style={styles.errorText}>{krogerApiError}</Text>}
       {!isKrogerLoading && !krogerApiError && price && storedZipCode && (
-         <Text style={styles.infoText}>Price displayed is based on ZIP code: {storedZipCode}.</Text>
+        <View style={styles.zipInfoRow}>
+          <Text style={styles.infoText}>Price displayed is based on ZIP code: {storedZipCode}.</Text>
+          <TouchableOpacity onPress={() => navigation.navigate('ZipEntry', { isChanging: true })}>
+            <Text style={styles.changeZipText}>change</Text>
+          </TouchableOpacity>
+        </View>
       )}
-      <Button 
-        title="Change ZIP Code" 
-        onPress={() => navigation.navigate('ZipEntry', { isChanging: true })} 
-        color={theme.PRIMARY_COLOR} 
-      />
       <View style={{ marginBottom: 15 }} /> 
 
 
@@ -317,7 +303,7 @@ const getStyles = (theme) => StyleSheet.create({
     marginBottom: 15,
   },
   readOnlyInput: {
-    backgroundColor: theme.mode === 'light' ? '#f0f0f0' : '#3A3A3C', // Slightly different for dark
+    backgroundColor: theme.mode === 'light' ? '#f0f0f0' : '#3A3A3C',
     color: theme.mode === 'light' ? '#555' : '#C7C7CC',
   },
   errorText: {
@@ -329,7 +315,19 @@ const getStyles = (theme) => StyleSheet.create({
     textAlign: 'center',
     fontSize: 12,
     color: theme.mode === 'light' ? 'grey' : theme.INPUT_PLACEHOLDER_COLOR,
-    marginBottom:10,
+    // Removed marginBottom:10 as it's now in zipInfoRow
+  },
+  zipInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 10, // Added marginBottom here
+  },
+  changeZipText: {
+    color: theme.PRIMARY_COLOR,
+    fontSize: 12,
+    textDecorationLine: 'underline',
+    marginLeft: 5, // Space between info text and change button
   },
   centeredRow: {
     flexDirection: 'row',

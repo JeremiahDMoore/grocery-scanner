@@ -5,15 +5,8 @@ import { Platform } from 'react-native';
 
 export const UPCITEMDB_API_KEY = 'demo_key'; // IMPORTANT: Replace with your actual key
 
-// IMPORTANT: For physical device testing, replace 'YOUR_COMPUTER_IP_ADDRESS' 
-// with your development machine's IP address on your local network.
-// Your physical device and computer must be on the same Wi-Fi network.
-// Example: const KROGER_SERVICE_DEV_IP = '192.168.1.100'; 
-// For iOS simulator, 'localhost' usually works for the KROGER_SERVICE_DEV_IP.
-// For Android emulator, '10.0.2.2' usually works for the KROGER_SERVICE_DEV_IP.
-const KROGER_SERVICE_DEV_IP = '192.168.1.181'; // <--- USER NEEDS TO CHANGE THIS FOR PHYSICAL DEVICE
-
-const KROGER_SERVICE_BASE_URL = `http://${KROGER_SERVICE_DEV_IP}:4000`;
+// The base URL for the deployed priceGetter service on Render.com
+const KROGER_SERVICE_BASE_URL = 'https://grocery-scanner-server.onrender.com';
 
 /**
  * Looks up product information from OpenFoodFacts API.
@@ -84,15 +77,22 @@ export async function lookupUPCitemdb(barcode) {
 }
 
 /**
- * Looks up product price from the local priceGetter service (Kroger API).
+ * Looks up product price from the deployed priceGetter service (Kroger API).
  * @param {string} upc - The barcode to look up.
  * @param {string} zipCode - The user's ZIP code.
  * @returns {Promise<object|null>} Product data or null if not found/error.
  */
 export async function lookupKrogerPrice(upc, zipCode) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 seconds timeout
+
   try {
-    const response = await fetch(`${KROGER_SERVICE_BASE_URL}/api/price?upc=${upc}&zip=${zipCode}`);
+    const response = await fetch(`${KROGER_SERVICE_BASE_URL}/api/price?upc=${upc}&zip=${zipCode}`, {
+      signal: controller.signal
+    });
     
+    clearTimeout(timeoutId); // Clear the timeout if the fetch completes in time
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ message: response.statusText }));
       console.error(`Kroger priceGetter service error: ${response.status}`, errorData);
@@ -102,6 +102,11 @@ export async function lookupKrogerPrice(upc, zipCode) {
     const data = await response.json();
     return data; 
   } catch (error) {
+    clearTimeout(timeoutId); // Ensure timeout is cleared even if an error occurs
+    if (error.name === 'AbortError') {
+      console.error('Error fetching from Kroger priceGetter service: Request timed out.');
+      throw new Error('Price check request timed out. Please try again.');
+    }
     console.error('Error fetching from Kroger priceGetter service:', error.message);
     throw error;
   }

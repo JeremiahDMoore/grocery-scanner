@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, Switch, Alert } from 'react-native';
+import { View, Text, TextInput, Button, StyleSheet, Switch, Alert, TouchableOpacity } from 'react-native'; // Added TouchableOpacity
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ThemeContext } from '../context/ThemeContext';
+import { Ionicons } from '@expo/vector-icons'; // Added Ionicons
 
 const ASYNC_STORAGE_ZIP_KEY = 'user_zip_code';
 const ASYNC_STORAGE_BUDGET_KEY = 'user_max_budget';
+const ASYNC_STORAGE_BEEP_KEY = 'barcode_beep_enabled'; // New key for beep toggle
 
 export default function SettingsScreen({ navigation }) {
   const { theme, toggleTheme } = useContext(ThemeContext);
@@ -13,14 +15,19 @@ export default function SettingsScreen({ navigation }) {
   const [zipCode, setZipCode] = useState('');
   const [maxBudget, setMaxBudget] = useState('');
   const [isDarkTheme, setIsDarkTheme] = useState(theme.mode === 'dark');
+  const [isBeepEnabled, setIsBeepEnabled] = useState(true); // New state for beep toggle
 
   useEffect(() => {
     const loadSettings = async () => {
       try {
         const storedZip = await AsyncStorage.getItem(ASYNC_STORAGE_ZIP_KEY);
         const storedBudget = await AsyncStorage.getItem(ASYNC_STORAGE_BUDGET_KEY);
+        const storedBeep = await AsyncStorage.getItem(ASYNC_STORAGE_BEEP_KEY);
+
         if (storedZip) setZipCode(storedZip);
         if (storedBudget) setMaxBudget(storedBudget);
+        // Default to true if no preference is stored
+        setIsBeepEnabled(storedBeep !== null ? JSON.parse(storedBeep) : true); 
       } catch (e) {
         console.error("Failed to load settings from AsyncStorage", e);
         Alert.alert('Error', 'Failed to load settings.');
@@ -48,6 +55,18 @@ export default function SettingsScreen({ navigation }) {
     setIsDarkTheme(prev => !prev);
   };
 
+  const handleBeepToggle = async () => {
+    const newValue = !isBeepEnabled;
+    setIsBeepEnabled(newValue);
+    try {
+      await AsyncStorage.setItem(ASYNC_STORAGE_BEEP_KEY, JSON.stringify(newValue));
+      Alert.alert('Setting Saved', `Barcode beep is now ${newValue ? 'ON' : 'OFF'}.`);
+    } catch (e) {
+      console.error("Failed to save beep preference", e);
+      Alert.alert('Save Error', 'Failed to save beep preference.');
+    }
+  };
+
   return (
     <View style={styles.container}>
       <Text style={styles.header}>Settings</Text>
@@ -57,7 +76,7 @@ export default function SettingsScreen({ navigation }) {
         <Button 
           title="Change ZIP Code" 
           onPress={() => navigation.navigate('ZipEntry', { isChanging: true })} 
-          color={theme.PRIMARY_COLOR}
+          color={theme.SECONDARY_COLOR}
         />
       </View>
 
@@ -71,18 +90,29 @@ export default function SettingsScreen({ navigation }) {
           keyboardType="numeric"
           placeholderTextColor={theme.INPUT_PLACEHOLDER_COLOR}
         />
-        <Button title="Save Budget" onPress={handleSaveMaxBudget} color={theme.PRIMARY_COLOR} />
+        <Button title="Save Budget" onPress={handleSaveMaxBudget} color={theme.SECONDARY_COLOR} />
       </View>
       
-      <View style={[styles.settingItem, styles.themeToggleContainer]}>
+      <View style={[styles.settingItem, styles.toggleContainer]}>
         <Text style={styles.label}>Dark Mode</Text>
         <Switch
-          trackColor={{ false: "#767577", true: "#545355" }}
-          thumbColor={isDarkTheme ? theme.PRIMARY_COLOR : "#f4f3f4"}
+          trackColor={{ false: theme.INPUT_BACKGROUND_COLOR, true: theme.INPUT_BACKGROUND_COLOR }}
+          thumbColor={isDarkTheme ? theme.SECONDARY_COLOR : theme.SECONDARY_COLOR}
           ios_backgroundColor="#3e3e3e"
           onValueChange={handleThemeToggle}
           value={isDarkTheme}
         />
+      </View>
+
+      <View style={[styles.settingItem, styles.toggleContainer]}>
+        <Text style={styles.label}>Barcode Beep</Text>
+        <TouchableOpacity onPress={handleBeepToggle} style={styles.iconToggle}>
+          <Ionicons 
+            name={isBeepEnabled ? "volume-high-outline" : "volume-mute-outline"} 
+            size={30} 
+            color={isBeepEnabled ? theme.PRIMARY_COLOR : theme.INPUT_PLACEHOLDER_COLOR} 
+          />
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -119,9 +149,12 @@ const getStyles = (theme) => StyleSheet.create({
     borderRadius: 5,
     marginBottom: 10,
   },
-  themeToggleContainer: {
+  toggleContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  iconToggle: {
+    padding: 5, // Add some padding around the icon for easier touch
   }
 });

@@ -4,7 +4,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, StatusBar, Platform } from 'react-native';
 
 // Import actual screens
 import ScanScreen from './screens/ScanScreen';
@@ -20,7 +20,11 @@ import { ThemeProvider, ThemeContext } from './context/ThemeContext';
 import CustomHeader from './components/CustomHeader';
 
 const Tab = createBottomTabNavigator();
-const Stack = createStackNavigator();
+const Stack = createStackNavigator(); // Main stack
+const SettingsStack = createStackNavigator(); // Stack for Settings tab
+const ScanStack = createStackNavigator();     // Stack for Scan tab
+const ListStack = createStackNavigator();     // Stack for List tab
+const ReceiptStack = createStackNavigator();  // Stack for Receipt tab
 
 const ASYNC_STORAGE_ZIP_KEY = 'user_zip_code';
 
@@ -29,6 +33,46 @@ function AppContent() {
   const [isCheckingZip, setIsCheckingZip] = useState(true);
   const [initialRouteName, setInitialRouteName] = useState(null);
 
+  // Define nested Stack Navigators for each tab
+  function SettingsStackScreen() {
+    return (
+      <SettingsStack.Navigator screenOptions={{ header: (props) => <CustomHeader {...props} /> }}>
+        <SettingsStack.Screen name="SettingsHome" component={SettingsScreen} options={{ title: 'Settings' }} />
+        {/* ZipEntry is now part of Settings flow */}
+        <SettingsStack.Screen name="ZipEntry" component={ZipCodeEntryScreen} options={{ headerShown: false }} />
+      </SettingsStack.Navigator>
+    );
+  }
+
+  function ScanStackScreen() {
+    return (
+      <ScanStack.Navigator screenOptions={{ header: (props) => <CustomHeader {...props} /> }}>
+        <ScanStack.Screen name="ScanHome" component={ScanScreen} options={{ title: 'Scan' }} />
+        <ScanStack.Screen name="ProductDetail" component={ProductDetailScreen} options={{ title: 'Product Details' }} />
+        <ScanStack.Screen name="ManualEntry" component={ManualEntryScreen} options={{ title: 'Add Item Manually' }} />
+      </ScanStack.Navigator>
+    );
+  }
+
+  function ListStackScreen() {
+    return (
+      <ListStack.Navigator screenOptions={{ header: (props) => <CustomHeader {...props} /> }}>
+        <ListStack.Screen name="ListHome" component={ListScreen} options={{ title: 'Shopping List' }} />
+        {/* ManualEntry can also be accessed from List */}
+        <ListStack.Screen name="ManualEntry" component={ManualEntryScreen} options={{ title: 'Add Item Manually' }} />
+      </ListStack.Navigator>
+    );
+  }
+
+  function ReceiptStackScreen() {
+    return (
+      <ReceiptStack.Navigator screenOptions={{ header: (props) => <CustomHeader {...props} /> }}>
+        <ReceiptStack.Screen name="ReceiptHome" component={ReceiptScreen} options={{ title: 'Receipt Scanner' }} />
+      </ReceiptStack.Navigator>
+    );
+  }
+
+  // Main Tabs Navigator, now containing Stack Navigators
   function MainTabsWithTheme() {
     return (
       <Tab.Navigator
@@ -46,16 +90,16 @@ function AppContent() {
             }
             return <Ionicons name={iconName} size={size} color={color} />;
           },
-          tabBarStyle: { backgroundColor: theme.BACKGROUND_COLOR, borderTopColor: theme.INPUT_BORDER_COLOR },
+          tabBarStyle: { backgroundColor: theme.INPUT_BACKGROUND_COLOR, borderTopColor: theme.INPUT_BORDER_COLOR },
           tabBarActiveTintColor: theme.PRIMARY_COLOR,
-          tabBarInactiveTintColor: theme.mode === 'light' ? 'gray' : theme.INPUT_PLACEHOLDER_COLOR,
-          headerShown: false,
+          tabBarInactiveTintColor: theme.mode === 'light' ? theme.SECONDARY_COLOR : theme.SECONDARY_COLOR,
+          headerShown: false, // Hide header for the tab navigator itself, headers are in nested stacks
         })}
       >
-        <Tab.Screen name="Settings" component={SettingsScreen} />
-        <Tab.Screen name="Scan" component={ScanScreen} />
-        <Tab.Screen name="List" component={ListScreen} />
-        <Tab.Screen name="Receipt" component={ReceiptScreen} />
+        <Tab.Screen name="Settings" component={SettingsStackScreen} />
+        <Tab.Screen name="Scan" component={ScanStackScreen} />
+        <Tab.Screen name="List" component={ListStackScreen} />
+        <Tab.Screen name="Receipt" component={ReceiptStackScreen} />
       </Tab.Navigator>
     );
   }
@@ -70,7 +114,6 @@ function AppContent() {
       border: theme.INPUT_BORDER_COLOR,
       notification: theme.PRIMARY_COLOR,
     },
-    // Add fonts to the navigation theme
     fonts: {
       regular: {
         fontFamily: theme.fonts.regular,
@@ -78,9 +121,8 @@ function AppContent() {
       },
       medium: {
         fontFamily: theme.fonts.medium,
-        fontWeight: '500', // React Navigation often expects fontWeight here
+        fontWeight: '500',
       },
-      // Add other font weights if needed by React Navigation
     },
   };
 
@@ -121,28 +163,15 @@ function AppContent() {
 
   return (
     <NavigationContainer theme={navigationTheme}>
+      {Platform.OS === 'android' && (
+        <StatusBar backgroundColor={theme.SECONDARY_COLOR} barStyle="light-content" />
+      )}
       <Stack.Navigator
         initialRouteName={initialRouteName}
-        screenOptions={({ navigation }) => ({
-          header: (props) => <CustomHeader {...props} />,
-        })}
+        screenOptions={{ headerShown: false }} // Hide header for the root stack, nested stacks handle their own
       >
-        <Stack.Screen name="ZipEntry" component={ZipCodeEntryScreen} options={{ headerShown: false }} />
-        <Stack.Screen 
-          name="Main" 
-          component={MainTabsWithTheme} 
-          // Removed headerShown: false to allow CustomHeader to be displayed
-          // The bottom navbar will remain persistent on all screens, displaying [Settings, Scan, List, Receipt]
-          // This means the header will appear above the tab bar.
-        />
-        <Stack.Screen
-          name="ManualEntry"
-          component={ManualEntryScreen}
-        />
-        <Stack.Screen
-          name="ProductDetail"
-          component={ProductDetailScreen}
-        />
+        <Stack.Screen name="ZipEntry" component={ZipCodeEntryScreen} />
+        <Stack.Screen name="Main" component={MainTabsWithTheme} />
       </Stack.Navigator>
     </NavigationContainer>
   );

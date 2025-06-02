@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useContext, useRef } from 'react';
-import { Text, View, StyleSheet, Button, Alert, TouchableOpacity } from 'react-native';
+import { Text, View, StyleSheet, Button, Alert, TouchableOpacity, ActivityIndicator } from 'react-native'; // Added ActivityIndicator
 import { CameraView, useCameraPermissions, Camera } from 'expo-camera';
 import { ThemeContext } from '../context/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { Audio } from 'expo-av'; // Added for sound
+import { Audio } from 'expo-av';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const ASYNC_STORAGE_BEEP_KEY = 'barcode_beep_enabled';
 
 export default function ScanScreen({ navigation }) {
   const { theme } = useContext(ThemeContext);
@@ -12,14 +15,38 @@ export default function ScanScreen({ navigation }) {
 
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
-  const [flash, setFlash] = useState('off'); // 'on', 'off', 'auto', 'torch'
-  const [facing, setFacing] = useState('back'); // 'front', 'back'
-  const [sound, setSound] = useState(null); // State to hold the sound object
+  const [flash, setFlash] = useState('off');
+  const [facing, setFacing] = useState('back');
+  const [sound, setSound] = useState(null);
+  const [isBeepEnabled, setIsBeepEnabled] = useState(true);
+  const [isCameraReady, setIsCameraReady] = useState(false); // New state for camera readiness
+  const [cameraKey, setCameraKey] = useState(0); // Key to force camera re-render
 
+  // Effect for camera permissions
+  useEffect(() => {
+    const requestCameraPermissions = async () => {
+      if (!permission) {
+        const { status } = await requestPermission();
+        if (status !== 'granted') {
+          Alert.alert('Permissions required', 'Camera permission is needed to scan barcodes.');
+        }
+      }
+      const galleryStatus = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (galleryStatus.status !== 'granted') {
+        Alert.alert('Permissions required', 'Gallery permission is needed to pick images.');
+      }
+    };
+    requestCameraPermissions();
+  }, [permission]);
+
+  // Effect for loading sound and beep preference
   useEffect(() => {
     let loadedSound = null;
-    const loadSound = async () => {
+    const loadSoundAndPreference = async () => {
       try {
+        const storedBeep = await AsyncStorage.getItem(ASYNC_STORAGE_BEEP_KEY);
+        setIsBeepEnabled(storedBeep !== null ? JSON.parse(storedBeep) : true);
+
         console.log('Attempting to load sound...');
         const { sound } = await Audio.Sound.createAsync(
           require('../assets/sounds/scanner-beep.wav')
@@ -28,44 +55,33 @@ export default function ScanScreen({ navigation }) {
         setSound(sound);
         console.log('Sound loaded successfully!');
       } catch (error) {
-        console.error('Error loading sound:', error);
-        Alert.alert('Sound Error', 'Failed to load scanner beep sound.');
+        console.error('Error loading sound or preference:', error);
+        // Alert.alert('Sound Error', 'Failed to load scanner beep sound or preference.'); // Removed intrusive alert
       }
     };
 
-    const requestPermissionsAndLoadSound = async () => {
-      if (!permission) {
-        await requestPermission();
-      }
-      const galleryStatus = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (galleryStatus.status !== 'granted') {
-        Alert.alert('Permissions required', 'Gallery permission is needed to pick images.');
-      }
-      
-      loadSound();
-    };
-
-    requestPermissionsAndLoadSound();
+    loadSoundAndPreference();
 
     return () => {
-      // Unload the sound when the component unmounts
-      if (loadedSound) { // Use the local variable to ensure correct sound instance is unloaded
+      if (loadedSound) {
         console.log('Unloading sound...');
         loadedSound.unloadAsync();
       }
     };
-  }, [permission]); // Removed 'sound' from dependency array to prevent re-loading loop
+  }, []); // Empty dependency array: load sound once on mount
 
   const handleBarCodeScanned = async ({ type, data }) => {
     setScanned(true);
-    if (sound) {
+    if (isBeepEnabled && sound) {
       try {
-        await sound.stopAsync(); // Stop if already playing
-        await sound.replayAsync(); // Play from beginning
+        await sound.stopAsync();
+        await sound.replayAsync();
         console.log('Sound played!');
       } catch (error) {
         console.error('Error playing sound:', error);
       }
+    } else if (!isBeepEnabled) {
+      console.log('Barcode beep is disabled in settings.');
     } else {
       console.log('Sound object not loaded, cannot play.');
     }
@@ -79,6 +95,17 @@ export default function ScanScreen({ navigation }) {
         }
       ]
     );
+  };
+
+  const onCameraReady = () => {
+    setIsCameraReady(true);
+  };
+
+  const handleCameraRefresh = () => {
+    setIsCameraReady(false); // Show loading overlay
+    setScanned(false);      // Reset scanned state
+    setCameraKey(prevKey => prevKey + 1); // Increment key to force camera remount
+    console.log('Camera refresh initiated.');
   };
 
   if (!permission) {
@@ -96,7 +123,14 @@ export default function ScanScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
+      {!isCameraReady && ( // Show loading indicator until camera is ready
+        <View style={styles.cameraLoadingOverlay}>
+          <ActivityIndicator size="large" color={theme.PRIMARY_COLOR} />
+          <Text style={styles.messageText}>Loading camera...</Text>
+        </View>
+      )}
       <CameraView
+        key={cameraKey} // Add key to force remount on refresh
         style={StyleSheet.absoluteFillObject}
         onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
         barcodeScannerSettings={{
@@ -104,6 +138,8 @@ export default function ScanScreen({ navigation }) {
         }}
         flash={flash}
         facing={facing}
+        onCameraReady={onCameraReady} // Callback when camera is ready
+        active={true} // Explicitly set camera active
       />
       {scanned && (
         <View style={styles.scannedOverlay}>
@@ -130,6 +166,9 @@ export default function ScanScreen({ navigation }) {
         </TouchableOpacity>
         <TouchableOpacity style={styles.controlButton} onPress={() => setFacing(facing === 'back' ? 'front' : 'back')}>
           <Ionicons name="camera-reverse-outline" size={28} color="white" />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.controlButton} onPress={handleCameraRefresh}>
+          <Ionicons name="refresh-outline" size={28} color="white" />
         </TouchableOpacity>
       </View>
 
@@ -163,6 +202,13 @@ const getStyles = (theme) => StyleSheet.create({
     fontSize: 16,
     marginBottom: 20,
     color: theme.TEXT_COLOR,
+  },
+  cameraLoadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: theme.BACKGROUND_COLOR,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1, // Ensure it's above the CameraView initially
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,

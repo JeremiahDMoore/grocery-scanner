@@ -31,7 +31,9 @@ export default function ManualEntryScreen({ navigation, route }) {
       list.push(newItem);
       await AsyncStorage.setItem('shoppingList', JSON.stringify(list));
       Alert.alert('Item Saved', `${productName} has been added to your list.`);
-      navigation.navigate('Main', { screen: 'List' });
+      // navigation.navigate('Main', { screen: 'List' });
+      navigation.goBack();
+
     } catch (e) {
       console.error("Failed to save item to AsyncStorage", e);
       Alert.alert('Save Error', 'Failed to save item.');
@@ -80,6 +82,8 @@ export default function ManualEntryScreen({ navigation, route }) {
       />
 
       <Button title="Save Item" onPress={saveItem} color={theme.PRIMARY_COLOR} />
+      <View style={{ marginVertical: 10 }} />
+      <Button title="Cancel" onPress={() => navigation.goBack()} color={theme.SECONDARY_COLOR} />
     </ScrollView>
   );
 }
